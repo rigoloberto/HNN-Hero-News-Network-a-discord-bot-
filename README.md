@@ -1,3 +1,5 @@
+![Hero News Network Banner](hnn_repo_banner.png)
+
 # 📡 𝙃𝙚𝙧𝙤 𝙉𝙚𝙬𝙨 𝙉𝙚𝙩𝙬𝙤𝙧𝙠 (𝙃𝙉𝙉)
 
 🌎 **Language / Idioma:** [English](#-english-documentation) | [Español](#-documentación-en-español)
