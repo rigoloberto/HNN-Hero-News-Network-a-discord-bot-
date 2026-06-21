@@ -1,5 +1,5 @@
 import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
-import { PostWithReactions, UserStats } from '../database';
+import { PostWithReactions, UserStats, MonthlyAwardWinners } from '../database';
 import { config } from './config';
 
 // Paleta de colores temáticos de MHA / HEROGRAM
@@ -9,6 +9,7 @@ const COLORS = {
   CONTROVERSIAL: 0xFF3366,// Rojo carmesí (Polémico)
   STATS: 0x5865F2,        // Azul Discord / Héroe estándar
   DIGEST: 0x7289DA,       // Color de marca HEROGRAM
+  AWARDS: 0x800020,        // Concho de vino (Premios/Rangos)
 };
 
 /**
@@ -60,6 +61,68 @@ export function formatDigestEmbed(
   });
 
   embed.setDescription(description);
+  return embed;
+}
+
+/**
+ * Genera el Embed para el Reporte de Premios Mensuales (Podios Top 3)
+ * @param winners Datos de los podios calculados
+ * @param isPrivate Si es true, incluye los IDs de Discord para moderación. Si es false, los oculta para el canal público.
+ */
+export function formatAwardsEmbed(
+  winners: MonthlyAwardWinners,
+  isPrivate: boolean
+): EmbedBuilder {
+  const embed = new EmbedBuilder()
+    .setColor(COLORS.AWARDS)
+    .setTitle(isPrivate ? '🏆 REPORT SOCIAL: RANGOS MENSUALES (MODERACIÓN)' : '🏆 RANGOS SOCIALES MENSUALES')
+    .setTimestamp()
+    .setFooter({ text: isPrivate ? 'HEROGRAM Algoritm V2.0 • Reporte Privado' : 'HEROGRAM Algoritm V2.0 • Sistema de Reputación' });
+
+  let desc = isPrivate 
+    ? `📊 *Reporte interno de podios mensuales con vinculaciones de Discord para facilitar la asignación de roles.*\n\n`
+    : `📊 *¡La opinión pública ha dictado veredicto! Aquí están las personalidades más destacadas del mes en las dinámicas:* \n\n`;
+
+  const medals = ['🥇', '🥈', '🥉'];
+
+  // Helper para renderizar un podio simple (Based, Burning, Repost)
+  const renderPodium = (title: string, list: any[], unit: string) => {
+    let text = `### ${title}\n`;
+    if (list.length === 0) {
+      text += `*Sin registros este mes.*\n\n`;
+      return text;
+    }
+    list.forEach((entry, i) => {
+      const medal = medals[i] || '▪️';
+      const playerText = isPrivate && entry.playerId ? ` (<@${entry.playerId}>)` : '';
+      text += `${medal} **\`${entry.characterName}\`**${playerText} — **${entry.count}** ${unit}\n`;
+    });
+    text += '\n';
+    return text;
+  };
+
+  // Helper para renderizar el podio de Aizawa (Detailed)
+  const renderAizawaPodium = (list: any[]) => {
+    let text = `### 👁️ El favorito de Aizawa\n`;
+    if (list.length === 0) {
+      text += `*Sin registros este mes.*\n\n`;
+      return text;
+    }
+    list.forEach((entry, i) => {
+      const medal = medals[i] || '▪️';
+      const playerText = isPrivate && entry.playerId ? ` (<@${entry.playerId}>)` : '';
+      text += `${medal} **\`${entry.characterName}\`**${playerText} — **${entry.upvotes}** Up / **${entry.downvotes}** Down (Debate: ${entry.count} 🩸)\n`;
+    });
+    text += '\n';
+    return text;
+  };
+
+  desc += renderPodium('🕊️ Symbol of Based', winners.based, 'upvotes ✨');
+  desc += renderPodium('🫠 The burning-man', winners.burning, 'downvotes 🔥');
+  desc += renderAizawaPodium(winners.aizawa);
+  desc += renderPodium('🌹 repost~', winners.repost, 'shares 🔄');
+
+  embed.setDescription(desc);
   return embed;
 }
 

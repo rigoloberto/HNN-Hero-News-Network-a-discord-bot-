@@ -1,6 +1,6 @@
 import { Client, TextChannel } from 'discord.js';
-import { getTopFeed, getHotFeed, PostWithReactions } from './database';
-import { formatDigestEmbed } from './utils/format';
+import { getTopFeed, getHotFeed, PostWithReactions, getMonthlyAwardWinners } from './database';
+import { formatDigestEmbed, formatAwardsEmbed } from './utils/format';
 import { config } from './utils/config';
 
 /**
@@ -10,7 +10,7 @@ export async function publishDigest(client: Client, type: 'daily' | 'weekly' | '
   try {
     const channel = await client.channels.fetch(config.herogramChannelId) as TextChannel;
     if (!channel || !channel.isTextBased()) {
-      console.error(`❌ Canal de HEROGRAM (${config.herogramChannelId}) no encontrado o no es de texto.`);
+      console.error(`❌ Canal de Hero News Network (${config.herogramChannelId}) no encontrado o no es de texto.`);
       return;
     }
 
@@ -38,11 +38,32 @@ export async function publishDigest(client: Client, type: 'daily' | 'weekly' | '
 }
 
 /**
+ * Publica los premios mensuales automáticamente
+ */
+export async function publishAwards(client: Client) {
+  try {
+    const channel = await client.channels.fetch(config.herogramChannelId) as TextChannel;
+    if (!channel || !channel.isTextBased()) {
+      console.error(`❌ Canal de Hero News Network no encontrado o no es de texto.`);
+      return;
+    }
+
+    const winners = getMonthlyAwardWinners();
+    const embed = formatAwardsEmbed(winners, false); // Público = Sin IDs de Discord
+
+    await channel.send({ embeds: [embed] });
+    console.log(`✅ Boletín Mensual de Premios publicado automáticamente.`);
+  } catch (error) {
+    console.error(`❌ Error al publicar boletín mensual de premios:`, error);
+  }
+}
+
+/**
  * Inicia el temporizador del scheduler
  * Verifica la hora actual cada minuto y detona los boletines a las 12:01 PM
  */
 export function startScheduler(client: Client) {
-  console.log('⏰ Programador de boletines de HEROGRAM iniciado.');
+  console.log('⏰ Programador de boletines de Hero News Network (HNN) iniciado.');
 
   setInterval(() => {
     const now = new Date();
@@ -57,8 +78,9 @@ export function startScheduler(client: Client) {
       console.log(`⏰ Ejecutando revisión de hora de boletín: 12:01 PM. Día del mes: ${dayOfMonth}, Día de la semana: ${dayOfWeek}`);
 
       if (dayOfMonth === 1) {
-        // Primer día del mes -> Boletín Mensual
+        // Primer día del mes -> Boletín Mensual y Premios
         publishDigest(client, 'monthly');
+        publishAwards(client);
       } else if (dayOfWeek === 0) {
         // Es Domingo (y no es día 1) -> Boletín Semanal
         publishDigest(client, 'weekly');

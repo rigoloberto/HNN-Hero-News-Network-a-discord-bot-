@@ -325,3 +325,102 @@ export function deletePost(messageId: string) {
   const query = db.prepare('DELETE FROM posts WHERE message_id = ?');
   query.run(messageId);
 }
+
+export interface AwardEntry {
+  characterName: string;
+  playerId: string | null;
+  count: number;
+}
+
+export interface DetailedAwardEntry extends AwardEntry {
+  upvotes: number;
+  downvotes: number;
+}
+
+export interface MonthlyAwardWinners {
+  based: AwardEntry[];
+  burning: AwardEntry[];
+  aizawa: DetailedAwardEntry[];
+  repost: AwardEntry[];
+}
+
+// Obtener ganadores de premios mensuales (últimos 30 días) - Top 3 por categoría
+export function getMonthlyAwardWinners(): MonthlyAwardWinners {
+  const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+  
+  const query = db.prepare(`
+    SELECT 
+      p.character_name,
+      MAX(p.player_id) as player_id,
+      SUM(COALESCE(r.upvotes, 0)) as total_upvotes,
+      SUM(COALESCE(r.downvotes, 0)) as total_downvotes,
+      SUM(COALESCE(r.shares, 0)) as total_shares
+    FROM posts p
+    LEFT JOIN reactions r ON p.message_id = r.message_id
+    WHERE p.created_at >= ?
+    GROUP BY p.character_name
+  `);
+
+  const results = query.all(thirtyDaysAgo) as any[];
+
+  // 1. Based (Top 3 upvotes desc, filter upvotes > 0)
+  const based = results
+    .map(r => ({
+      characterName: r.character_name,
+      playerId: r.player_id,
+      count: r.total_upvotes || 0
+    }))
+    .filter(e => e.count > 0)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 3);
+
+  // 2. Burning (Top 3 downvotes desc, filter downvotes > 0)
+  const burning = results
+    .map(r => ({
+      characterName: r.character_name,
+      playerId: r.player_id,
+      count: r.total_downvotes || 0
+    }))
+    .filter(e => e.count > 0)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 3);
+
+  // 3. Aizawa (Top 3 controversy desc, tie-breaker total votes, filter Math.min > 0)
+  const aizawa = results
+    .map(r => {
+      const up = r.total_upvotes || 0;
+      const down = r.total_downvotes || 0;
+      return {
+        characterName: r.character_name,
+        playerId: r.player_id,
+        upvotes: up,
+        downvotes: down,
+        count: Math.min(up, down)
+      };
+    })
+    .filter(e => e.count > 0)
+    .sort((a, b) => {
+      if (b.count !== a.count) return b.count - a.count;
+      const totalA = a.upvotes + a.downvotes;
+      const totalB = b.upvotes + b.downvotes;
+      return totalB - totalA;
+    })
+    .slice(0, 3);
+
+  // 4. Repost (Top 3 shares desc, filter shares > 0)
+  const repost = results
+    .map(r => ({
+      characterName: r.character_name,
+      playerId: r.player_id,
+      count: r.total_shares || 0
+    }))
+    .filter(e => e.count > 0)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 3);
+
+  return { based, burning, aizawa, repost };
+}
+
+
+
+

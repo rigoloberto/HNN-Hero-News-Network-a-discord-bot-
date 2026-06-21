@@ -8,13 +8,15 @@ import {
   MessageReaction,
   User,
   ThreadChannel,
+  TextChannel,
   SlashCommandBuilder,
   PermissionFlagsBits,
   MessageFlags
 } from 'discord.js';
 import { config, validateConfig, isEmojiMatch } from './utils/config';
-import { initDatabase, savePost, updateReactions, deletePost } from './database';
+import { initDatabase, savePost, updateReactions, deletePost, getMonthlyAwardWinners } from './database';
 import { startScheduler, publishDigest } from './scheduler';
+import { formatAwardsEmbed } from './utils/format';
 
 // Importar comandos
 import * as statsCommand from './commands/stats';
@@ -36,7 +38,6 @@ const client = new Client({
   ],
 });
 
-// Comandos administrativos
 const adminCommandData = new SlashCommandBuilder()
   .setName('herogram-admin')
   .setDescription('Comandos de administración para HEROGRAM.')
@@ -54,6 +55,21 @@ const adminCommandData = new SlashCommandBuilder()
             { name: 'Diario', value: 'daily' },
             { name: 'Semanal', value: 'weekly' },
             { name: 'Mensual', value: 'monthly' }
+          )
+      )
+  )
+  .addSubcommand(subcommand =>
+    subcommand
+      .setName('rangos')
+      .setDescription('Genera el reporte mensual de rangos/premios sociales (Podio).')
+      .addStringOption(option =>
+        option
+          .setName('tipo')
+          .setDescription('Público (publicar en canal) o Privado (solo visible para ti)')
+          .setRequired(true)
+          .addChoices(
+            { name: 'Público (Publicar en canal)', value: 'public' },
+            { name: 'Privado (Solo visible para ti)', value: 'private' }
           )
       )
   );
@@ -308,7 +324,7 @@ async function syncMessageReactions(message: Message) {
 /**
  * Escucha cuando se agrega una reacción
  */
-client.on(Events.MessageReactionAdd, async (reaction: MessageReaction, user: User) => {
+client.on(Events.MessageReactionAdd, async (reaction: any, user: any) => {
   if (user.id === client.user?.id) return;
 
   if (reaction.partial) {
@@ -333,7 +349,7 @@ client.on(Events.MessageReactionAdd, async (reaction: MessageReaction, user: Use
 /**
  * Escucha cuando se remueve una reacción
  */
-client.on(Events.MessageReactionRemove, async (reaction: MessageReaction, user: User) => {
+client.on(Events.MessageReactionRemove, async (reaction: any, user: any) => {
   if (user.id === client.user?.id) return;
 
   if (reaction.partial) {
@@ -377,8 +393,33 @@ client.on(Events.InteractionCreate, async (interaction) => {
           await publishDigest(client, type);
           
           await chatInteraction.editReply({
-            content: `✅ Boletín **${type.toUpperCase()}** enviado con éxito al canal de HEROGRAM.`,
+            content: `✅ Boletín **${type.toUpperCase()}** enviado con éxito al canal de Hero News Network.`,
           });
+        } else if (subcommand === 'rangos') {
+          const type = chatInteraction.options.getString('tipo') as 'public' | 'private';
+          await chatInteraction.deferReply({ flags: MessageFlags.Ephemeral });
+          
+          const winners = getMonthlyAwardWinners();
+          
+          if (type === 'private') {
+            const embed = formatAwardsEmbed(winners, true);
+            await chatInteraction.editReply({ embeds: [embed] });
+          } else {
+            const channel = await client.channels.fetch(config.herogramChannelId) as TextChannel;
+            if (!channel || !channel.isTextBased()) {
+              await chatInteraction.editReply({
+                content: `❌ Canal de Hero News Network (${config.herogramChannelId}) no encontrado o no es de texto.`,
+              });
+              return;
+            }
+            
+            const embed = formatAwardsEmbed(winners, false);
+            await channel.send({ embeds: [embed] });
+            
+            await chatInteraction.editReply({
+              content: `✅ Reporte de Rangos Sociales publicado con éxito en el canal de Hero News Network.`,
+            });
+          }
         }
       }
     }
