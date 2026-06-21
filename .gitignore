@@ -1,0 +1,28 @@
+# Dependencias de Node
+node_modules/
+
+# Archivos de configuración y credenciales (¡CRÍTICO PARA REPOS PÚBLICOS!)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Base de datos SQLite local
+*.db
+*.db-journal
+*.sqlite
+
+# Temporales y Logs de Bun / npm
+.bun/
+bun.lockb
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Archivos del Sistema Operativo
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
